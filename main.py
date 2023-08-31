@@ -12,12 +12,11 @@ from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 
-# from pydantic_model import Movie,MovieSearch
+import os
 
-
-SECRET_KEY = "83knnjh23kjh490923894832423488333jh"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+secret_key = os.environ.get("SECRET_KEY")
+algorithm = os.environ.get("ALGORITHM")
+access_token_expire_minutes = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -28,12 +27,12 @@ def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
     expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm="HS256")
     return encoded_jwt
 
 def get_current_user_role(token: str = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
         role = payload.get("role")
         if role !="admin":
             raise HTTPException(status_code=403, detail="Permission denied")
@@ -43,7 +42,7 @@ def get_current_user_role(token: str = Depends(oauth2_scheme)):
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
         token_user = payload.get("sub")
         if not token_user:
             raise HTTPException(status_code=403, detail="Permission denied")
@@ -87,7 +86,7 @@ def login(username: str, password: str, db: Session = Depends(get_db)):
     if not user or not password_context.verify(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role},
         expires_delta=access_token_expires
@@ -99,13 +98,12 @@ def login(username: str, password: str, db: Session = Depends(get_db)):
 def create_movie(movie: pydantic_model.Movie,current_user_role: str = Depends(get_current_user_role),session: Session = Depends(get_db)):
     existing_movie = session.query(MovieData).filter(MovieData.IMDB_ID == movie.IMDB_ID).first()
     if existing_movie:
-        # session.close()
+
         raise HTTPException(status_code=404, detail="Movie with the same IMDB_ID already exists")
     db_movie = MovieData(**movie.dict())
     session.add(db_movie)
     session.commit()
     session.refresh(db_movie)
-    # session.close()
     return movie
 
 @app.delete("/movies/{movie_id}")
@@ -118,7 +116,7 @@ def delete_movie(
     if movie:
         session.delete(movie)
         session.commit()
-        # session.close()
+
         return {"message": "Movie deleted"}
     raise HTTPException(status_code=404, detail="Movie not found")
 
@@ -132,7 +130,7 @@ def edit_movie(
         for key, value in updated_movie.dict().items():
             setattr(movie, key, value)
         session.commit()
-        # session.close()
+
         return {"message": "Movie updated"}
     raise HTTPException(status_code=404, detail="Movie not found")
 
@@ -159,7 +157,6 @@ async def search_movies(search_params: pydantic_model.MovieSearch = Depends(),se
         query = query = query.filter(MovieData.Director.ilike(f'%{search_params.director}%'))
 
     movies = query.all()
-    # session.close()
 
     response_movies = [pydantic_model.Movie(**movie.__dict__) for movie in movies]
     return response_movies

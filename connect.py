@@ -9,7 +9,7 @@ print("creating tables")
 movie_df = pd.read_csv("./dataCsv/movie_data.csv")
 
 # Set up SQLite database
-db_engine = create_engine('sqlite:///movie_database.db')
+db_engine = create_engine('sqlite:///your_database.db', connect_args={'check_same_thread': False})
 
 
 Base.metadata.create_all(db_engine)
