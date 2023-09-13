@@ -1,4 +1,3 @@
-# beyond-assignment
 
 # Movie database API Documentation
 
